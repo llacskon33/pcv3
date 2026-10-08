@@ -67,9 +67,20 @@ jobs:
           Remove-Item $installerPath -Force
 
       - name: Establish Tailscale Connection
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
         run: |
           # Bring up Tailscale with the provided auth key and set a unique hostname
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID
+          if ([string]::IsNullOrWhiteSpace($env:TAILSCALE_AUTH_KEY)) {
+              Write-Error "TAILSCALE_AUTH_KEY is not configured. Set it to a valid Tailscale auth key in the repository Actions secrets."
+              exit 1
+          }
+
+          $tailscaleOutput = & "$env:ProgramFiles\Tailscale\tailscale.exe" up "--authkey=$env:TAILSCALE_AUTH_KEY" "--hostname=gh-runner-$env:GITHUB_RUN_ID" 2>&1
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "Tailscale authentication failed. Verify that TAILSCALE_AUTH_KEY is a valid, unexpired auth key."
+              exit 1
+          }
           
           # Wait for Tailscale to assign an IP
           $tsIP = $null
